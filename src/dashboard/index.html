@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket Paper Trading</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600&display=swap');
+
+        :root {
+            --bg: #080c10;
+            --bg2: #0d1219;
+            --bg3: #111720;
+            --border: #1e2c3a;
+            --border2: #243445;
+            --text: #c8d8e8;
+            --text-dim: #4a6070;
+            --text-bright: #e8f4ff;
+            --accent: #00c8ff;
+            --accent2: #0090cc;
+            --green: #4ade80;
+            --green-dim: #1a3d25;
+            --red: #f87171;
+            --red-dim: #3d1a1a;
+            --blue: #60a5fa;
+            --yellow: #facc15;
+            --mono: 'IBM Plex Mono', monospace;
+            --sans: 'Space Grotesk', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 13px;
+            line-height: 1.5;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scanline effect */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,200,255,0.012) 2px, rgba(0,200,255,0.012) 4px);
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-family: var(--sans);
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            color: var(--text-bright);
+        }
+        .logo span { color: var(--accent); }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+        .status-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--red);
+            display: inline-block;
+            margin-right: 5px;
+            transition: background 0.3s;
+        }
+        .status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .main { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto; gap: 1px; background: var(--border); }
+
+        .panel {
+            background: var(--bg2);
+            padding: 20px;
+        }
+
+        .panel-title {
+            font-family: var(--sans);
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .panel-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── Strategy Cards ── */
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .strategy-card {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 14px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        .strategy-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+        }
+        .strategy-card.active { border-color: var(--border2); }
+
+        .strat-label {
+            font-family: var(--sans);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            margin-bottom: 10px;
+            color: var(--text-bright);
+        }
+        .strat-winrate {
+            font-size: 28px;
+            font-weight: 300;
+            color: var(--text-bright);
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .strat-winrate span { font-size: 13px; color: var(--text-dim); }
+
+        .strat-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .strat-meta-item { }
+        .strat-meta-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+        .strat-meta-value { font-size: 13px; font-weight: 500; }
+
+        .pnl-positive { color: var(--green); }
+        .pnl-negative { color: var(--red); }
+        .pnl-neutral { color: var(--text-dim); }
+
+        .trade-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        .trade-badge.up { background: var(--green-dim); color: var(--green); }
+        .trade-badge.down { background: var(--red-dim); color: var(--red); }
+        .trade-badge.pending { background: #1a2535; color: var(--accent); }
+        .trade-badge.win { background: var(--green-dim); color: var(--green); }
+        .trade-badge.loss { background: var(--red-dim); color: var(--red); }
+
+        /* ── Delta Chart ── */
+        .chart-area {
+            grid-column: 1 / -1;
+            min-height: 200px;
+            position: relative;
+        }
+
+        canvas {
+            width: 100% !important;
+            display: block;
+        }
+
+        /* ── Trade Log ── */
+        .trade-log {
+            grid-column: 1 / -1;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .log-table th {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            text-align: left;
+            padding: 4px 8px;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--sans);
+            position: sticky;
+            top: 0;
+            background: var(--bg2);
+        }
+        .log-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid rgba(30,44,58,0.5);
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .log-table tr:hover td { background: var(--bg3); }
+        .log-row-new { animation: flash 0.8s ease; }
+        @keyframes flash { from { background: rgba(0,200,255,0.1); } to { background: transparent; } }
+
+        /* ── Price ticker ── */
+        .ticker-bar {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            padding: 12px 20px;
+            background: var(--bg3);
+            border-bottom: 1px solid var(--border);
+            font-size: 11px;
+            overflow-x: auto;
+        }
+        .ticker-item { display: flex; flex-direction: column; gap: 1px; min-width: max-content; }
+        .ticker-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+        .ticker-value { font-size: 14px; font-weight: 500; color: var(--text-bright); transition: color 0.2s; }
+        .ticker-value.up-flash { color: var(--green); }
+        .ticker-value.down-flash { color: var(--red); }
+
+        .delta-bar-container { display: flex; align-items: center; gap: 8px; }
+        .delta-bar {
+            width: 80px; height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .delta-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s, background 0.3s;
+        }
+
+        .remaining-ring {
+            width: 40px; height: 40px;
+            position: relative;
+        }
+        .remaining-ring svg { transform: rotate(-90deg); }
+        .remaining-ring-label {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 500;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+        .no-data { color: var(--text-dim); font-size: 12px; padding: 20px; text-align: center; }
+        .connecting { animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">POLY<span>PAPER</span> · strategy simulator</div>
+    <div class="status-bar">
+        <div><span class="status-dot" id="ws-dot"></span><span id="ws-status" class="connecting">connecting…</span></div>
+        <div id="round-info" style="color:var(--text-dim)">—</div>
+        <div id="clock" style="color:var(--text)">00:00:00</div>
+    </div>
+</div>
+
+<!-- Live ticker -->
+<div class="ticker-bar">
+    <div class="ticker-item">
+        <div class="ticker-label">BTC Price</div>
+        <div class="ticker-value" id="t-price">—</div>
+    </div>
+    <div class="ticker-item">
+        <div class="ticker-label">Price to Beat</div>
+        <div class="ticker-value" id="t-ptb">—</div>
+    </div>
+    <div class="ticker-item">
+        <div class="ticker-label">Delta ($)</div>
+        <div class="ticker-value" id="t-delta">—</div>
+    </div>
+    <div class="ticker-item">
+        <div class="ticker-label">Delta momentum</div>
+        <div class="delta-bar-container">
+            <div class="delta-bar"><div class="delta-bar-fill" id="delta-bar" style="width:50%;background:var(--text-dim)"></div></div>
+        </div>
+    </div>
+    <div class="ticker-item">
+        <div class="ticker-label">UP Ask / Bid</div>
+        <div class="ticker-value" id="t-up">—</div>
+    </div>
+    <div class="ticker-item">
+        <div class="ticker-label">DOWN Ask / Bid</div>
+        <div class="ticker-value" id="t-down">—</div>
+    </div>
+    <div class="ticker-item" style="margin-left:auto">
+        <div class="ticker-label">Remaining</div>
+        <div class="ticker-value" id="t-remaining">—</div>
+    </div>
+</div>
+
+<div class="main">
+    <!-- Strategy comparison -->
+    <div class="panel" style="grid-column:1/-1">
+        <div class="panel-title">Strategy Performance</div>
+        <div class="strategy-grid" id="strategy-grid">
+            <div class="no-data">Waiting for data…</div>
+        </div>
+    </div>
+
+    <!-- Delta chart -->
+    <div class="panel chart-area">
+        <div class="panel-title">Delta History — Current Round</div>
+        <canvas id="delta-chart" height="160"></canvas>
+    </div>
+
+    <!-- Cumulative P&L chart -->
+    <div class="panel chart-area">
+        <div class="panel-title">Cumulative P&L</div>
+        <canvas id="pnl-chart" height="160"></canvas>
+    </div>
+
+    <!-- Trade log -->
+    <div class="panel trade-log">
+        <div class="panel-title">Trade Log</div>
+        <table class="log-table">
+            <thead>
+            <tr>
+                <th>Time</th>
+                <th>Strategy</th>
+                <th>Direction</th>
+                <th>Delta</th>
+                <th>Token Price</th>
+                <th>Amount</th>
+                <th>Remaining</th>
+                <th>Outcome</th>
+                <th>P&L</th>
+            </tr>
+            </thead>
+            <tbody id="trade-log-body">
+            <tr><td colspan="9" class="no-data">No trades yet</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // ── State ─────────────────────────────────────────────────────────────────────
+    const state = {
+        stats: [],
+        trades: [],
+        deltaHistory: [],
+        pnlHistory: {}, // strategyId -> [{round, pnl}]
+        connected: false,
+    };
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────────
+    let ws;
+    function connect() {
+        ws = new WebSocket(`ws://${location.host}`);
+
+        ws.onopen = () => {
+            state.connected = true;
+            document.getElementById('ws-dot').classList.add('live');
+            document.getElementById('ws-status').textContent = 'live';
+            document.getElementById('ws-status').classList.remove('connecting');
+        };
+
+        ws.onclose = () => {
+            state.connected = false;
+            document.getElementById('ws-dot').classList.remove('live');
+            document.getElementById('ws-status').textContent = 'reconnecting…';
+            document.getElementById('ws-status').classList.add('connecting');
+            setTimeout(connect, 2000);
+        };
+
+        ws.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            handleMessage(msg);
+        };
+    }
+
+    function handleMessage(msg) {
+        switch (msg.type) {
+            case 'init':
+                state.stats = msg.stats || [];
+                state.trades = msg.trades || [];
+                state.deltaHistory = msg.deltaHistory || [];
+                renderAll();
+                break;
+            case 'tick':
+                updateTicker(msg.snapshot);
+                state.deltaHistory = [...state.deltaHistory.slice(-300), msg.snapshot];
+                renderDeltaChart();
+                break;
+            case 'trade':
+                state.trades.push(msg.trade);
+                addTradeRow(msg.trade, true);
+                break;
+            case 'round_start':
+                state.deltaHistory = [];
+                document.getElementById('round-info').textContent =
+                    `Round ends ${new Date(msg.endTimestamp * 1000).toLocaleTimeString()}`;
+                renderDeltaChart();
+                break;
+            case 'round_end':
+                state.stats = msg.stats || state.stats;
+                // update pnl history
+                if (msg.results) {
+                    msg.results.forEach(r => {
+                        if (!state.pnlHistory[r.strategyId]) state.pnlHistory[r.strategyId] = [];
+                        const prev = state.pnlHistory[r.strategyId];
+                        const cum = (prev.length ? prev[prev.length-1].cum : 0) + (r.pnl || 0);
+                        prev.push({ cum });
+                    });
+                }
+                renderStrategyCards();
+                renderPnlChart();
+                // update any pending trades
+                if (msg.results) {
+                    msg.results.forEach(r => {
+                        if (r.trade) updateTradeRow(r.trade);
+                    });
+                }
+                break;
+        }
+    }
+
+    // ── Ticker ────────────────────────────────────────────────────────────────────
+    let lastPrice = 0;
+    function updateTicker(s) {
+        if (!s) return;
+        const price = s.currentPrice;
+        const priceEl = document.getElementById('t-price');
+        const delta = s.delta;
+
+        if (price !== lastPrice) {
+            priceEl.classList.remove('up-flash','down-flash');
+            void priceEl.offsetWidth;
+            priceEl.classList.add(price > lastPrice ? 'up-flash' : 'down-flash');
+            lastPrice = price;
+        }
+
+        priceEl.textContent = price ? '$' + price.toFixed(2) : '—';
+        document.getElementById('t-ptb').textContent = s.priceToBeat ? '$' + s.priceToBeat.toFixed(2) : '—';
+
+        const deltaEl = document.getElementById('t-delta');
+        deltaEl.textContent = delta !== undefined ? (delta >= 0 ? '+' : '') + delta.toFixed(2) : '—';
+        deltaEl.style.color = delta > 0 ? 'var(--green)' : delta < 0 ? 'var(--red)' : 'var(--text-dim)';
+
+        // Delta bar — center=neutral, right=+200, left=-200
+        const pct = Math.min(Math.max((delta + 200) / 400, 0), 1) * 100;
+        const bar = document.getElementById('delta-bar');
+        bar.style.width = pct + '%';
+        bar.style.background = delta >= 0 ? 'var(--green)' : 'var(--red)';
+
+        const upAsk = s.upAsk, upBid = s.upBid;
+        document.getElementById('t-up').textContent = upAsk && upBid ? `${upAsk} / ${upBid}` : '—';
+        const downAsk = s.downAsk, downBid = s.downBid;
+        document.getElementById('t-down').textContent = downAsk && downBid ? `${downAsk} / ${downBid}` : '—';
+
+        const rem = s.remainingSec;
+        document.getElementById('t-remaining').textContent = rem !== undefined ? rem.toFixed(1) + 's' : '—';
+        document.getElementById('t-remaining').style.color = rem < 10 ? 'var(--yellow)' : 'var(--text-bright)';
+    }
+
+    // ── Clock ─────────────────────────────────────────────────────────────────────
+    setInterval(() => {
+        document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+    }, 1000);
+
+    // ── Strategy Cards ────────────────────────────────────────────────────────────
+    function renderStrategyCards() {
+        const grid = document.getElementById('strategy-grid');
+        if (!state.stats.length) return;
+
+        grid.innerHTML = state.stats.map(s => {
+            const wr = s.winRate.toFixed(1);
+            const pnlClass = s.totalPnl > 0 ? 'pnl-positive' : s.totalPnl < 0 ? 'pnl-negative' : 'pnl-neutral';
+            const pnlStr = (s.totalPnl >= 0 ? '+' : '') + s.totalPnl.toFixed(2);
+
+            return `<div class="strategy-card active" style="--card-color:${s.color}">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${s.color}"></div>
+      <div class="strat-label" style="color:${s.color}">${s.label}</div>
+      <div class="strat-winrate">${wr}<span>% win</span></div>
+      <div class="strat-meta">
+        <div class="strat-meta-item">
+          <div class="strat-meta-label">Total P&L</div>
+          <div class="strat-meta-value ${pnlClass}">$${pnlStr}</div>
+        </div>
+        <div class="strat-meta-item">
+          <div class="strat-meta-label">Trades</div>
+          <div class="strat-meta-value">${s.totalTrades}</div>
+        </div>
+        <div class="strat-meta-item">
+          <div class="strat-meta-label">Wins</div>
+          <div class="strat-meta-value pnl-positive">${s.wins}</div>
+        </div>
+        <div class="strat-meta-item">
+          <div class="strat-meta-label">Losses</div>
+          <div class="strat-meta-value pnl-negative">${s.losses}</div>
+        </div>
+      </div>
+    </div>`;
+        }).join('');
+    }
+
+    // ── Delta Chart ───────────────────────────────────────────────────────────────
+    function renderDeltaChart() {
+        const canvas = document.getElementById('delta-chart');
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.offsetWidth;
+        const h = canvas.offsetHeight || 160;
+
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        ctx.scale(dpr, dpr);
+
+        ctx.clearRect(0, 0, w, h);
+
+        const data = state.deltaHistory;
+        if (data.length < 2) {
+            ctx.fillStyle = '#4a6070';
+            ctx.font = '11px IBM Plex Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText('Waiting for data…', w/2, h/2);
+            return;
+        }
+
+        const deltas = data.map(d => d.delta);
+        const min = Math.min(...deltas, -10);
+        const max = Math.max(...deltas, 10);
+        const range = max - min || 1;
+
+        const pad = { t: 10, r: 10, b: 30, l: 48 };
+        const cw = w - pad.l - pad.r;
+        const ch = h - pad.t - pad.b;
+
+        const toX = i => pad.l + (i / (data.length - 1)) * cw;
+        const toY = v => pad.t + ch - ((v - min) / range) * ch;
+
+        // Grid lines
+        ctx.strokeStyle = '#1e2c3a';
+        ctx.lineWidth = 1;
+        [-200, -100, 0, 100, 200].forEach(v => {
+            if (v < min || v > max) return;
+            const y = toY(v);
+            ctx.beginPath();
+            ctx.moveTo(pad.l, y);
+            ctx.lineTo(w - pad.r, y);
+            ctx.stroke();
+            ctx.fillStyle = '#4a6070';
+            ctx.font = '9px IBM Plex Mono';
+            ctx.textAlign = 'right';
+            ctx.fillText(v, pad.l - 4, y + 3);
+        });
+
+        // Zero line
+        const zeroY = toY(0);
+        ctx.strokeStyle = '#243445';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pad.l, zeroY);
+        ctx.lineTo(w - pad.r, zeroY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Fill area
+        const grad = ctx.createLinearGradient(0, pad.t, 0, h - pad.b);
+        grad.addColorStop(0, 'rgba(248,113,113,0.15)');
+        grad.addColorStop(0.5, 'rgba(30,44,58,0.1)');
+        grad.addColorStop(1, 'rgba(74,222,128,0.15)');
+
+        ctx.beginPath();
+        ctx.moveTo(toX(0), zeroY);
+        data.forEach((d, i) => ctx.lineTo(toX(i), toY(d.delta)));
+        ctx.lineTo(toX(data.length - 1), zeroY);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Line
+        ctx.beginPath();
+        data.forEach((d, i) => i === 0 ? ctx.moveTo(toX(i), toY(d.delta)) : ctx.lineTo(toX(i), toY(d.delta)));
+        ctx.strokeStyle = '#00c8ff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Trade markers
+        const roundTrades = state.trades.filter(t => {
+            const tradeTs = t.timestamp;
+            return state.deltaHistory.length && tradeTs >= state.deltaHistory[0].timestamp;
+        });
+        roundTrades.forEach(trade => {
+            const closest = state.deltaHistory.reduce((best, d, i) =>
+                Math.abs(d.timestamp - trade.timestamp) < Math.abs(state.deltaHistory[best].timestamp - trade.timestamp) ? i : best, 0);
+            const x = toX(closest);
+            const y = toY(state.deltaHistory[closest].delta);
+            const strat = state.stats.find(s => s.strategyId === trade.strategyId);
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = strat?.color || '#fff';
+            ctx.fill();
+            ctx.strokeStyle = '#080c10';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        });
+
+        // X labels
+        ctx.fillStyle = '#4a6070';
+        ctx.font = '9px IBM Plex Mono';
+        ctx.textAlign = 'center';
+        [0, 0.5, 1].forEach(f => {
+            const i = Math.floor(f * (data.length - 1));
+            if (!data[i]) return;
+            const x = toX(i);
+            const rem = data[i].remainingSec;
+            ctx.fillText(rem.toFixed(0) + 's', x, h - pad.b + 14);
+        });
+    }
+
+    // ── P&L Chart ─────────────────────────────────────────────────────────────────
+    function renderPnlChart() {
+        const canvas = document.getElementById('pnl-chart');
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.offsetWidth;
+        const h = canvas.offsetHeight || 160;
+
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, w, h);
+
+        const series = Object.entries(state.pnlHistory);
+        if (!series.length || series.every(([,v]) => v.length === 0)) {
+            ctx.fillStyle = '#4a6070';
+            ctx.font = '11px IBM Plex Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText('No rounds completed yet…', w/2, h/2);
+            return;
+        }
+
+        const allVals = series.flatMap(([,pts]) => pts.map(p => p.cum));
+        const min = Math.min(...allVals, -1);
+        const max = Math.max(...allVals, 1);
+        const range = max - min || 1;
+        const maxLen = Math.max(...series.map(([,pts]) => pts.length));
+
+        const pad = { t: 10, r: 10, b: 30, l: 52 };
+        const cw = w - pad.l - pad.r;
+        const ch = h - pad.t - pad.b;
+        const toX = i => pad.l + (maxLen <= 1 ? 0 : (i / (maxLen - 1))) * cw;
+        const toY = v => pad.t + ch - ((v - min) / range) * ch;
+
+        // Grid
+        ctx.strokeStyle = '#1e2c3a';
+        ctx.lineWidth = 1;
+        [min, 0, max].forEach(v => {
+            const y = toY(v);
+            ctx.beginPath();
+            ctx.moveTo(pad.l, y);
+            ctx.lineTo(w - pad.r, y);
+            ctx.stroke();
+            ctx.fillStyle = '#4a6070';
+            ctx.font = '9px IBM Plex Mono';
+            ctx.textAlign = 'right';
+            ctx.fillText('$' + v.toFixed(1), pad.l - 4, y + 3);
+        });
+
+        // Zero
+        ctx.strokeStyle = '#243445';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pad.l, toY(0));
+        ctx.lineTo(w - pad.r, toY(0));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Lines per strategy
+        series.forEach(([strategyId, pts]) => {
+            if (!pts.length) return;
+            const strat = state.stats.find(s => s.strategyId === strategyId);
+            const color = strat?.color || '#fff';
+
+            ctx.beginPath();
+            pts.forEach((p, i) => i === 0 ? ctx.moveTo(toX(i), toY(p.cum)) : ctx.lineTo(toX(i), toY(p.cum)));
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Last point dot + label
+            const last = pts[pts.length - 1];
+            const lx = toX(pts.length - 1);
+            const ly = toY(last.cum);
+            ctx.beginPath();
+            ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.fillStyle = color;
+            ctx.font = '9px IBM Plex Mono';
+            ctx.textAlign = 'left';
+            ctx.fillText('$' + last.cum.toFixed(2), lx + 6, ly + 3);
+        });
+    }
+
+    // ── Trade Log ─────────────────────────────────────────────────────────────────
+    function addTradeRow(trade, isNew = false) {
+        const tbody = document.getElementById('trade-log-body');
+        if (tbody.querySelector('.no-data')) tbody.innerHTML = '';
+
+        const strat = state.stats.find(s => s.strategyId === trade.strategyId);
+        const row = document.createElement('tr');
+        if (isNew) row.classList.add('log-row-new');
+        row.id = 'trade-' + trade.id;
+        row.innerHTML = tradeRowHtml(trade, strat);
+        tbody.insertBefore(row, tbody.firstChild);
+    }
+
+    function updateTradeRow(trade) {
+        const row = document.getElementById('trade-' + trade.id);
+        if (!row) { addTradeRow(trade, false); return; }
+        const strat = state.stats.find(s => s.strategyId === trade.strategyId);
+        row.innerHTML = tradeRowHtml(trade, strat);
+        row.classList.add('log-row-new');
+    }
+
+    function tradeRowHtml(trade, strat) {
+        const time = new Date(trade.timestamp).toLocaleTimeString();
+        const dir = trade.direction;
+        const outcome = trade.outcome;
+        const pnl = trade.pnl;
+        const pnlStr = pnl !== null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) : '—';
+        const pnlClass = pnl > 0 ? 'pnl-positive' : pnl < 0 ? 'pnl-negative' : 'pnl-neutral';
+        const color = strat?.color || '#fff';
+        return `
+    <td>${time}</td>
+    <td style="color:${color};font-weight:500">${strat?.label || trade.strategyId}</td>
+    <td><span class="trade-badge ${dir.toLowerCase()}">${dir === 'UP' ? '▲' : '▼'} ${dir}</span></td>
+    <td style="color:${trade.entryDelta >= 0 ? 'var(--green)' : 'var(--red)'}">${trade.entryDelta >= 0 ? '+' : ''}${trade.entryDelta.toFixed(2)}</td>
+    <td>${trade.tokenPrice.toFixed(3)}</td>
+    <td>$${trade.amount}</td>
+    <td>${trade.remainingSecAtEntry.toFixed(1)}s</td>
+    <td><span class="trade-badge ${outcome.toLowerCase()}">${outcome === 'PENDING' ? '⏳' : outcome === 'WIN' ? '✓' : '✗'} ${outcome}</span></td>
+    <td class="${pnlClass}">$${pnlStr}</td>`;
+    }
+
+    function renderAll() {
+        renderStrategyCards();
+        renderDeltaChart();
+        renderPnlChart();
+        const tbody = document.getElementById('trade-log-body');
+        tbody.innerHTML = '';
+        if (!state.trades.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="no-data">No trades yet</td></tr>';
+        } else {
+            state.trades.slice().reverse().forEach(t => addTradeRow(t, false));
+        }
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────────
+    connect();
+    window.addEventListener('resize', () => {
+        renderDeltaChart();
+        renderPnlChart();
+    });
+</script>
+</body>
+</html>
