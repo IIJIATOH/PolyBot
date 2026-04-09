@@ -1,6 +1,5 @@
 import type { MarketConfig, Coin, Minutes } from "../types.js";
 import { generateMarketSlug } from "./slug.js";
-import "ts-bign";
 
 export const COINS: Record<Coin, string> = {
   btc: "Bitcoin",

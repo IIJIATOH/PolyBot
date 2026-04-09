@@ -56,14 +56,14 @@ export class Trade {
 
                 set_purchased_token(true);
 
-                const priceBig = new Big(price);
-                const sizeBig = new Big(shareCount);
+                const priceBig = Number(price);
+                const sizeBig = Number(shareCount);
 
                 const order = await this.authorizedClob.createOrder({
                     tokenID: this.upTokenId,
-                    price: priceBig.toNumber(),
+                    price: priceBig,
                     side: Side.BUY,
-                    size: sizeBig.toNumber(),
+                    size: sizeBig,
                 });
 
                 console.log(tui.success("Order created: " + JSON.stringify(order)));
@@ -85,14 +85,14 @@ export class Trade {
 
                 set_purchased_token(true);
 
-                const priceBig = new Big(price);
-                const sizeBig = new Big(shareCount);
+                const priceBig = Number(price);
+                const sizeBig = Number(shareCount);
 
                 const order = await this.authorizedClob.createOrder({
                     tokenID: this.downTokenId,
-                    price: priceBig.toNumber(),
+                    price: priceBig,
                     side: Side.BUY,
-                    size: sizeBig.toNumber(),
+                    size: sizeBig,
                 });
 
                 console.log(tui.success("Order created: " + JSON.stringify(order)));

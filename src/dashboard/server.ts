@@ -18,10 +18,11 @@ export class DashboardServer {
         this.httpServer = createServer((req, res) => {
             if (req.url === "/" || req.url === "/index.html") {
                 try {
-                    const html = readFileSync(join(process.cwd(), "dashboard", "index.html"), "utf-8");
+                    const html = readFileSync(join(process.cwd(), "src/dashboard", "index.html"), "utf-8");
                     res.writeHead(200, { "Content-Type": "text/html" });
                     res.end(html);
-                } catch {
+                } catch (error) {
+                    console.log(error);
                     res.writeHead(404);
                     res.end("Dashboard not found. Make sure dashboard/index.html exists.");
                 }
